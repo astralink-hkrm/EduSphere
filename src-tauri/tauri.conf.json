@@ -1,0 +1,37 @@
+{
+  "productName": "EduSphere",
+  "version": "0.1.0",
+  "identifier": "com.edusphere.ocr",
+  "build": {
+    "beforeDevCommand": "npm --prefix frontend run dev",
+    "beforeBuildCommand": "npm --prefix frontend run build",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../frontend/out"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "EduSphere Document OCR",
+        "width": 1200,
+        "height": 800,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ]
+  }
+}
