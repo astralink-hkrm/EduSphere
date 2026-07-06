@@ -5,6 +5,7 @@ export const DocumentFieldsSchema = z.object({
   name: z.string().optional().describe("Full name of the person"),
   dateOfBirth: z.string().optional().describe("Date of birth in DD-MM-YYYY format"),
   fatherName: z.string().optional().describe("Father's or spouse's name"),
+  motherName: z.string().optional().describe("Mother's name"),
   address: z.string().optional().describe("Full address from the document"),
   mobileNumber: z.string().optional().describe("Mobile phone number"),
   email: z.string().optional().describe("Email address"),
