@@ -45,7 +45,6 @@ export async function autoCrop(dataUrl: string): Promise<string> {
   }
   edgePixels.sort((a, b) => a - b);
   const bgBrightness = edgePixels[Math.floor(edgePixels.length / 2)] / 3;
-  const threshold = bgBrightness + 30;
 
   let minX = width, minY = height, maxX = 0, maxY = 0;
   const step = 2;
@@ -95,7 +94,7 @@ export async function smartFilter(dataUrl: string): Promise<{ dataUrl: string; a
   const applied: string[] = [];
 
   // Compute histogram and statistics
-  let sumBrightness = 0, sumContrast = 0;
+  let sumBrightness = 0;
   const hist = new Array(256).fill(0);
   let minB = 255, maxB = 0;
   let darkCount = 0, lightCount = 0, colorCount = 0;

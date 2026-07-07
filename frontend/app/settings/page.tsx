@@ -1,15 +1,32 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Alert,
+  IconButton,
+  InputAdornment,
+} from "@mui/material";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import SaveIcon from "@mui/icons-material/Save";
+import GoogleIcon from "@mui/icons-material/Google";
+
+const getLocal = (key: string, fallback: string) => {
+  if (typeof window === "undefined") return fallback;
+  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+};
 
 export default function Settings() {
-  const [geminiKey, setGeminiKey] = useState("");
-  const [groqKey, setGroqKey] = useState("");
+  const [geminiKey, setGeminiKey] = useState(() => getLocal("gemini_key", ""));
+  const [groqKey, setGroqKey] = useState(() => getLocal("groq_key", ""));
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    setGeminiKey(localStorage.getItem("gemini_key") || "");
-    setGroqKey(localStorage.getItem("groq_key") || "");
-  }, []);
+  const [showGemini, setShowGemini] = useState(false);
+  const [showGroq, setShowGroq] = useState(false);
 
   const save = () => {
     localStorage.setItem("gemini_key", geminiKey);
@@ -19,49 +36,128 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "24px 16px" }}>
-      <h1 style={{ fontSize: "1.4rem", fontWeight: 600, margin: "0 0 4px 0" }}>Settings</h1>
-      <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "0 0 20px 0" }}>
-        Configure API keys for vision models
-      </p>
+    <Box>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, fontSize: "1.6rem", mb: 0.5 }}>
+          Settings
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Configure API keys for vision models
+        </Typography>
+      </Box>
 
-      <div className="card" style={{ marginBottom: "16px" }}>
-        <div className="card-header">
-          <span className="card-title">Google Gemini</span>
-        </div>
-        <div style={{ padding: "0 0 12px 0" }}>
-          <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
-            API Key
-          </label>
-          <input type="password" className="input" value={geminiKey}
-            onChange={e => setGeminiKey(e.target.value)}
-            placeholder="Enter your Gemini API key" />
-          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "4px" }}>
-            Get your key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>aistudio.google.com</a>
-          </div>
-        </div>
-      </div>
+      {saved && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          API keys saved successfully.
+        </Alert>
+      )}
 
-      <div className="card" style={{ marginBottom: "16px" }}>
-        <div className="card-header">
-          <span className="card-title">Groq (Llama 4 Scout Vision)</span>
-        </div>
-        <div style={{ padding: "0 0 12px 0" }}>
-          <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
-            API Key
-          </label>
-          <input type="password" className="input" value={groqKey}
-            onChange={e => setGroqKey(e.target.value)}
-            placeholder="Enter your Groq API key" />
-          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "4px" }}>
-            Get your key at <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>console.groq.com</a>
-          </div>
-        </div>
-      </div>
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+            <GoogleIcon color="primary" />
+            <Typography variant="h6" sx={{ fontSize: "0.95rem", fontWeight: 600 }}>
+              Google Gemini
+            </Typography>
+          </Box>
+          <TextField
+            fullWidth
+            type={showGemini ? "text" : "password"}
+            label="API Key"
+            value={geminiKey}
+            onChange={(e) => setGeminiKey(e.target.value)}
+            size="small"
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setShowGemini(!showGemini)} edge="end">
+                      {showGemini ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+            Get your key at{" "}
+            <Typography
+              component="a"
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noreferrer"
+              variant="caption"
+              color="primary"
+              sx={{ textDecoration: "underline" }}
+            >
+              aistudio.google.com
+            </Typography>
+          </Typography>
+        </CardContent>
+      </Card>
 
-      <button className="btn btn-primary" onClick={save}>
-        {saved ? "✓ Saved" : "Save Keys"}
-      </button>
-    </div>
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+            <Box
+              sx={{
+                width: 24,
+                height: 24,
+                borderRadius: 1,
+                bgcolor: "primary.light",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                color: "primary.main",
+              }}
+            >
+              G
+            </Box>
+            <Typography variant="h6" sx={{ fontSize: "0.95rem", fontWeight: 600 }}>
+              Groq
+            </Typography>
+          </Box>
+          <TextField
+            fullWidth
+            type={showGroq ? "text" : "password"}
+            label="API Key"
+            value={groqKey}
+            onChange={(e) => setGroqKey(e.target.value)}
+            size="small"
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setShowGroq(!showGroq)} edge="end">
+                      {showGroq ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+            Get your key at{" "}
+            <Typography
+              component="a"
+              href="https://console.groq.com/keys"
+              target="_blank"
+              rel="noreferrer"
+              variant="caption"
+              color="primary"
+              sx={{ textDecoration: "underline" }}
+            >
+              console.groq.com
+            </Typography>
+          </Typography>
+        </CardContent>
+      </Card>
+
+      <Button variant="contained" startIcon={<SaveIcon />} onClick={save} sx={{ px: 4 }}>
+        Save Keys
+      </Button>
+    </Box>
   );
 }
