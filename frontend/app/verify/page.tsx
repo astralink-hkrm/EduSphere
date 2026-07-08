@@ -52,19 +52,7 @@ import {
   type ReconciliationResult,
 } from "../reconcile";
 import { saveVerification } from "../lib/storage";
-
-const MODELS = [
-  { id: "gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", provider: "Google", modelId: "gemini-2.0-flash-lite", costIn: 0.075, costOut: 0.30 },
-  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google", modelId: "gemini-2.0-flash", costIn: 0.10, costOut: 0.40 },
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "Google", modelId: "gemini-2.5-flash", costIn: 0.15, costOut: 0.60 },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "Google", modelId: "gemini-2.5-pro", costIn: 1.25, costOut: 5.00 },
-  { id: "groq", name: "Llama 4 Scout", provider: "Groq", modelId: "meta-llama/llama-4-scout-17b-16e-instruct", costIn: 0, costOut: 0 },
-];
-
-const getLocal = (key: string, fallback: string) => {
-  if (typeof window === "undefined") return fallback;
-  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
-};
+import { getModelInfo, callModel, getModelApiKey } from "../lib/providers";
 
 const SYSTEM_PROMPT = `You are a document analysis assistant. Analyze the provided document image and extract all visible information. Return a valid JSON object with these fields:
 - documentType: the type of document (e.g., Aadhaar, PAN, Birth Certificate, Transfer Certificate, Driving License, Voter ID, Passport, Bank Statement, Invoice, Report Card, Other)
@@ -102,48 +90,7 @@ interface DocItem {
   validationErrors: string[];
 }
 
-async function callGemini(base64: string, apiKey: string, modelId: string) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: SYSTEM_PROMPT }, { inline_data: { mime_type: "image/jpeg", data: base64.split(",")[1] } }] }],
-      }),
-    }
-  );
-  if (res.status === 429) throw new Error("Gemini API rate limit exceeded (429).");
-  if (!res.ok) throw new Error(`Gemini error (${res.status}): ${(await res.text()).slice(0, 100)}`);
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  const meta = data?.usageMetadata || {};
-  return {
-    text,
-    usage: { promptTokens: meta.promptTokenCount || 0, completionTokens: meta.candidatesTokenCount || 0, totalTokens: meta.totalTokenCount || 0 },
-  };
-}
 
-async function callGroq(base64: string, apiKey: string, modelId: string) {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: modelId,
-      messages: [{ role: "user", content: [{ type: "text", text: SYSTEM_PROMPT }, { type: "image_url", image_url: { url: base64 } }] }],
-      max_tokens: 2048,
-    }),
-  });
-  if (res.status === 429) throw new Error("Groq API rate limit exceeded (429).");
-  if (!res.ok) throw new Error(`Groq error (${res.status}): ${(await res.text()).slice(0, 100)}`);
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content || "";
-  const usage = data?.usage || {};
-  return {
-    text,
-    usage: { promptTokens: usage.prompt_tokens || 0, completionTokens: usage.completion_tokens || 0, totalTokens: usage.total_tokens || 0 },
-  };
-}
 
 function extractJson(text: string): string {
   const m = text.match(/\{[\s\S]*\}/);
@@ -153,7 +100,10 @@ function extractJson(text: string): string {
 export default function VerifyPage() {
   const [step, setStep] = useState(0);
   const [docs, setDocs] = useState<DocItem[]>([]);
-  const [selectedModel] = useState(() => getLocal("selected_model", "gemini-2.0-flash-lite"));
+  const [selectedModel] = useState(() => {
+    if (typeof window === "undefined") return "gemini-2.0-flash-lite";
+    try { return localStorage.getItem("selected_model") || "gemini-2.0-flash-lite"; } catch { return "gemini-2.0-flash-lite"; }
+  });
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [batchResults, setBatchResults] = useState<{ totalTokens: number; totalCost: number } | null>(null);
@@ -162,15 +112,6 @@ export default function VerifyPage() {
   const [selectedValues, setSelectedValues] = useState<Record<string, { value: string; docId: number | null; manual: boolean }>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const [geminiKey] = useState(() => {
-    if (typeof window === "undefined") return "";
-    try { return localStorage.getItem("gemini_key") || ""; } catch { return ""; }
-  });
-  const [groqKey] = useState(() => {
-    if (typeof window === "undefined") return "";
-    try { return localStorage.getItem("groq_key") || ""; } catch { return ""; }
-  });
 
   const completedDocs = docs.filter((d) => d.result);
   const allDone = completedDocs.length === docs.length && docs.length > 0;
@@ -199,8 +140,9 @@ export default function VerifyPage() {
     setBatchResults(null);
     setReconResult(null);
 
-    const model = MODELS.find((m) => m.id === selectedModel)!;
-    const key = model.provider === "Google" ? geminiKey : groqKey;
+    const model = getModelInfo(selectedModel);
+    if (!model) { setRunning(false); return; }
+    const key = getModelApiKey(selectedModel);
     if (!key) { setRunning(false); return; }
 
     let totalTokens = 0;
@@ -214,9 +156,7 @@ export default function VerifyPage() {
         const processed = await preprocessImage(doc.preview);
         setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, processed } : d)));
 
-        const { text, usage } = model.provider === "Google"
-          ? await callGemini(processed.processed, key, model.modelId)
-          : await callGroq(processed.processed, key, model.modelId);
+        const { text, usage } = await callModel(processed.processed, selectedModel, SYSTEM_PROMPT);
 
         const jsonStr = extractJson(text);
         let parsed: DocumentFields;
@@ -260,7 +200,7 @@ export default function VerifyPage() {
     }
 
     setRunning(false);
-  }, [docs, running, selectedModel, geminiKey, groqKey]);
+  }, [docs, running, selectedModel]);
 
   const toggleRow = (field: string) => {
     setExpandedRows((prev) => {

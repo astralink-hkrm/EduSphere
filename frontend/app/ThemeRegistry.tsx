@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ThemeProvider, createTheme, CssBaseline } from "@mui/material";
 import {
   Box,
@@ -16,6 +16,7 @@ import {
   MenuItem,
   FormControl,
   Chip,
+  ListSubheader,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
@@ -95,33 +96,67 @@ const NAV_ITEMS = [
   { label: "Settings", href: "/settings", icon: SettingsIcon },
 ];
 
-const MODELS = [
-  { id: "gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", provider: "Google" },
-  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google" },
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "Google" },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "Google" },
-  { id: "groq", name: "Llama 4 Scout", provider: "Groq" },
-];
+import { getAllModels, type ModelBadge } from "./lib/providers";
+
+const PROVIDER_ORDER = ["Google", "OpenRouter", "GitHub Models", "Groq"];
+
+const BADGE_LABELS: Record<ModelBadge, { label: string; color: "warning" | "success" | "info" }> = {
+  recommended: { label: "⭐ Recommended", color: "warning" },
+  "best-value": { label: "💰 Best Value", color: "success" },
+  "open-source": { label: "🔓 Open Source", color: "info" },
+};
+
+function groupModelsByProvider(models: ReturnType<typeof getAllModels>) {
+  const groups = new Map<string, typeof models>();
+  for (const m of models) {
+    const list = groups.get(m.provider) || [];
+    list.push(m);
+    groups.set(m.provider, list);
+  }
+  const ordered: { provider: string; models: typeof models }[] = [];
+  for (const name of PROVIDER_ORDER) {
+    if (groups.has(name)) {
+      ordered.push({ provider: name, models: groups.get(name)! });
+      groups.delete(name);
+    }
+  }
+  for (const [name, list] of groups) {
+    ordered.push({ provider: name, models: list });
+  }
+  return ordered;
+}
+
+function providerChipLabel(provider: string): string {
+  if (provider === "Google") return "G";
+  if (provider === "Groq") return "Gq";
+  if (provider === "OpenRouter") return "O";
+  if (provider === "GitHub Models") return "GH";
+  return provider.charAt(0).toUpperCase();
+}
+
+const setLocal = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch {}
+};
 
 const getLocal = (key: string, fallback: string) => {
   if (typeof window === "undefined") return fallback;
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
 };
 
-const setLocal = (key: string, value: string) => {
-  try { localStorage.setItem(key, value); } catch {}
-};
-
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [selectedModel, setSelectedModel] = useState(() => getLocal("selected_model", "gemini-2.0-flash-lite"));
+  const models = getAllModels();
+  const [selectedModel, setSelectedModel] = useState("gemini-2.0-flash-lite");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedModel(getLocal("selected_model", "gemini-2.0-flash-lite"));
+  }, []);
 
   const handleModelChange = (id: string) => {
     setSelectedModel(id);
     setLocal("selected_model", id);
   };
-
-  const activeModel = MODELS.find((m) => m.id === selectedModel) || MODELS[0];
 
   return (
     <ThemeProvider theme={theme}>
@@ -203,30 +238,81 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
                 {pathname === "/" ? "Dashboard" : pathname === "/verify" ? "Document Verification" : pathname === "/settings" ? "Settings" : ""}
               </Typography>
               <SmartToyIcon sx={{ color: "primary.main", fontSize: 20 }} />
-              <FormControl size="small" sx={{ minWidth: 200 }}>
+              <FormControl size="small" sx={{ minWidth: 220 }}>
                 <Select
                   value={selectedModel}
                   onChange={(e) => handleModelChange(e.target.value)}
-                  sx={{
-                    fontSize: "0.78rem",
-                    bgcolor: "background.default",
-                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "divider" },
-                  }}
-                >
-                  {MODELS.map((m) => (
-                    <MenuItem key={m.id} value={m.id} sx={{ fontSize: "0.8rem" }}>
+                  renderValue={(value) => {
+                    const m = models.find((x) => x.id === value);
+                    if (!m) return value;
+                    return (
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                         <Chip
-                          label={m.provider === "Google" ? "G" : "Gq"}
+                          label={providerChipLabel(m.provider)}
                           size="small"
                           color="primary"
                           variant="outlined"
                           sx={{ fontSize: "0.55rem", fontWeight: 700, minWidth: 24, height: 20 }}
                         />
-                        {m.name}
+                        <Typography variant="body2" sx={{ fontSize: "0.78rem", fontWeight: 500 }}>
+                          {m.name}
+                        </Typography>
                       </Box>
-                    </MenuItem>
-                  ))}
+                    );
+                  }}
+                  sx={{
+                    fontSize: "0.78rem",
+                    bgcolor: "background.default",
+                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "divider" },
+                    "& .MuiSelect-select": { py: 1 },
+                  }}
+                  MenuProps={{
+                    slotProps: { paper: { sx: { maxHeight: 400 } } },
+                  }}
+                >
+                  {groupModelsByProvider(models).flatMap((group) => [
+                    <ListSubheader
+                      key={group.provider}
+                      sx={{
+                        fontSize: "0.65rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        color: "text.secondary",
+                        lineHeight: "32px",
+                        bgcolor: "background.paper",
+                      }}
+                    >
+                      {group.provider}
+                    </ListSubheader>,
+                    ...group.models.map((m) => (
+                      <MenuItem key={m.id} value={m.id} sx={{ fontSize: "0.8rem", py: 0.75 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+                          <Chip
+                            label={providerChipLabel(m.provider)}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontSize: "0.55rem", fontWeight: 700, minWidth: 24, height: 20 }}
+                          />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 500 }}>
+                              {m.name}
+                            </Typography>
+                          </Box>
+                          {m.badge && (
+                            <Chip
+                              label={BADGE_LABELS[m.badge].label}
+                              size="small"
+                              color={BADGE_LABELS[m.badge].color}
+                              variant="outlined"
+                              sx={{ fontSize: "0.55rem", fontWeight: 600, height: 20 }}
+                            />
+                          )}
+                        </Box>
+                      </MenuItem>
+                    )),
+                  ])}
                 </Select>
               </FormControl>
             </Toolbar>
