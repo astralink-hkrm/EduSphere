@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "EduSphere UDISE+ Bridge",
+  "version": "1.0.0",
+  "description": "Connects EduSphere OCR to the UDISE+ portal for seamless data transfer.",
+  "permissions": ["tabs"],
+  "host_permissions": [
+    "https://udiseplus.gov.in/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_title": "Open UDISE+"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

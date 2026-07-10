@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, Fragment } from "react";
 import {
   Box,
   Typography,
@@ -53,6 +53,7 @@ import {
 } from "../reconcile";
 import { saveVerification } from "../lib/storage";
 import { getModelInfo, callModel, getModelApiKey } from "../lib/providers";
+import { triggerUDISEExtension, prepareUDISETransfer } from "../lib/udise";
 
 const SYSTEM_PROMPT = `You are a document analysis assistant. Analyze the provided document image and extract all visible information. Return a valid JSON object with these fields:
 - documentType: the type of document (e.g., Aadhaar, PAN, Birth Certificate, Transfer Certificate, Driving License, Voter ID, Passport, Bank Statement, Invoice, Report Card, Other)
@@ -95,6 +96,17 @@ interface DocItem {
 function extractJson(text: string): string {
   const m = text.match(/\{[\s\S]*\}/);
   return m ? m[0] : text;
+}
+
+function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return "--";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(formatFieldValue).join(", ");
+  if (typeof value === "object") {
+    const parts = Object.values(value as Record<string, unknown>).filter((v) => v !== null && v !== undefined && v !== "");
+    return parts.map(formatFieldValue).join(", ");
+  }
+  return String(value);
 }
 
 export default function VerifyPage() {
@@ -449,7 +461,7 @@ export default function VerifyPage() {
                                 {fd.label}
                               </Typography>
                               <Typography variant="body2" sx={{ fontWeight: 500, fontSize: "0.8rem" }}>
-                                {val}
+                                {formatFieldValue(val)}
                               </Typography>
                             </Box>
                           </Grid>
@@ -463,7 +475,7 @@ export default function VerifyPage() {
                                 {k}
                               </Typography>
                               <Typography variant="body2" sx={{ fontWeight: 500, fontSize: "0.8rem" }}>
-                                {v}
+                                {formatFieldValue(v)}
                               </Typography>
                             </Box>
                           </Grid>
@@ -529,8 +541,8 @@ export default function VerifyPage() {
                       const isExpanded = expandedRows.has(field.field);
                       const sv = selectedValues[field.field];
                       return (
-                        <>
-                          <TableRow key={field.field} hover sx={{ "&:hover": { cursor: "pointer" } }} onClick={() => toggleRow(field.field)}>
+                        <Fragment key={field.field}>
+                          <TableRow hover sx={{ "&:hover": { cursor: "pointer" } }} onClick={() => toggleRow(field.field)}>
                             <TableCell>
                               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                                 {isExpanded ? <ExpandMoreIcon fontSize="small" color="action" /> : <ChevronRightIcon fontSize="small" color="action" />}
@@ -585,7 +597,7 @@ export default function VerifyPage() {
                             </TableCell>
                           </TableRow>
                           {isExpanded && (
-                            <TableRow>
+                            <TableRow key={`${field.field}-expanded`}>
                               <TableCell colSpan={completedDocs.length + 3} sx={{ py: 1.5, px: 4 }}>
                                 <Box>
                                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: "block", mb: 1 }}>
@@ -632,7 +644,7 @@ export default function VerifyPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       );
                     })}
                   </TableBody>
@@ -774,13 +786,22 @@ export default function VerifyPage() {
               variant="contained"
               color="success"
               startIcon={<ContentCopyIcon />}
-              onClick={() => {
-                handleComplete();
-                const output = ["=== ADMISSION FORM SUMMARY ===", "",
-                  ...FIELD_DEFS.filter((f) => formData[f.key]).map((f) => `${f.label}: ${formData[f.key]}`),
-                  "", "=== DOCUMENTS ===", ...completedDocs.map((d) => `- ${d.file.name}`),
-                ].join("\n");
-                navigator.clipboard.writeText(output);
+              onClick={async () => {
+                console.log("Button clicked");
+                console.log("Preparing UDISE transfer");
+                prepareUDISETransfer({
+                  studentName: formData.name || "",
+                  dob: formData.dateOfBirth || "",
+                  fatherName: formData.fatherName || "",
+                  motherName: formData.motherName || "",
+                  gender: formData.gender || "",
+                  address: formData.address || "",
+                  mobile: formData.mobileNumber || "",
+                  email: formData.email || "",
+                });
+                console.log("Calling extension bridge");
+                await triggerUDISEExtension();
+                console.log("UDISE trigger completed");
               }}
             >
               Complete & Export

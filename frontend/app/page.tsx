@@ -113,8 +113,8 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {records.map((r) => (
-                    <TableRow key={r.id} hover>
+                  {records.map((r, index) => (
+                    <TableRow key={`${r.id}-${index}`} hover>
                       <TableCell sx={{ fontWeight: 500 }}>{r.studentName || "Untitled"}</TableCell>
                       <TableCell>{r.docCount}</TableCell>
                       <TableCell>
